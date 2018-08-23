@@ -1,11 +1,7 @@
-import { Command, CommandArgs, CommandResult,
-         help, success, longName, required, hasArg,
-         failure, ErrorCodes } from "../../../util/commandline";
+import { CommandArgs, help } from "../../../util/commandline";
 import { GenerateCommand } from "../lib/generate-command";
-import { AppCenterClient } from "../../../util/apis";
 import { Messages } from "../lib/help-messages";
-import * as pfs from "../../../util/misc/promisfied-fs";
-import * as phttps from "../../../util/misc/promisfied-https";
+import * as path from "path";
 
 @help(Messages.TestCloud.Commands.GenerateAppium)
 export default class GenerateAppiumCommand extends GenerateCommand {
@@ -14,6 +10,10 @@ export default class GenerateAppiumCommand extends GenerateCommand {
     super(args);
   }
 
-  protected zipPathAndroid = "Appium/Android-1.0.zip";
-  protected zipPathiOS = "Appium/iOS-1.0.zip";
+  protected templatePathAndroid = path.join(__dirname, "../lib/templates/appium/android");
+  protected templatePathiOS = path.join(__dirname, "../lib/templates/appium/ios");
+
+  protected async processTemplate(): Promise<void> {
+    return;
+  }
 }

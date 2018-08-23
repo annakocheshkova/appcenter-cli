@@ -1,5 +1,5 @@
-import { CommandResult, ErrorCodes, failure, hasArg, help, longName, shortName } from "../../util/commandline";
-import CodePushReleaseCommandSkeleton from "./lib/release-command-skeleton"
+import { CommandResult, ErrorCodes, failure, hasArg, help, longName, shortName, defaultValue } from "../../util/commandline";
+import CodePushReleaseCommandSkeleton from "./lib/release-command-skeleton";
 import { AppCenterClient, models, clientRequest } from "../../util/apis";
 import { out } from "../../util/interaction";
 import { inspect } from "util";
@@ -66,6 +66,12 @@ export default class CodePushReleaseReactCommand extends CodePushReleaseCommandS
   @hasArg
   public specifiedTargetBinaryVersion: string;
 
+  @help("Option that gets passed to react-native bundler. Can be specified multiple times")
+  @longName("extra-bundler-option")
+  @defaultValue([])
+  @hasArg
+  public extraBundlerOptions: string | string[];
+
   private os: string;
 
   private platform: string;
@@ -87,8 +93,8 @@ export default class CodePushReleaseReactCommand extends CodePushReleaseCommandS
     this.platform = appInfo.platform.toLowerCase();
 
     this.updateContentsPath = this.outputDir || await pfs.mkTempDir("code-push");
-    
-    // we have to add "CodePush" root folder to make update contents file structure 
+
+    // we have to add "CodePush" root folder to make update contents file structure
     // to be compatible with React Native client SDK
     this.updateContentsPath = path.join(this.updateContentsPath, "CodePush");
     mkdirp.sync(this.updateContentsPath);
@@ -140,17 +146,21 @@ export default class CodePushReleaseReactCommand extends CodePushReleaseCommandS
       this.targetBinaryVersion = await getReactNativeProjectAppVersion(versionSearchParams);
     }
 
+    if (typeof this.extraBundlerOptions === "string") {
+      this.extraBundlerOptions = [this.extraBundlerOptions];
+    }
+
     try {
       createEmptyTmpReleaseFolder(this.updateContentsPath);
       removeReactTmpDir();
-      await runReactNativeBundleCommand(this.bundleName, this.development, this.entryFile, this.updateContentsPath, this.os, this.sourcemapOutput);
+      await runReactNativeBundleCommand(this.bundleName, this.development, this.entryFile, this.updateContentsPath, this.os, this.sourcemapOutput, this.extraBundlerOptions);
 
       out.text(chalk.cyan("\nReleasing update contents to CodePush:\n"));
 
       return await this.release(client);
     } catch (error) {
       debug(`Failed to release a CodePush update - ${inspect(error)}`);
-      return failure(ErrorCodes.Exception, "Failed to release a CodePush update.")
+      return failure(ErrorCodes.Exception, "Failed to release a CodePush update.");
     } finally {
       if (!this.outputDir) {
         await pfs.rmDir(this.updateContentsPath);

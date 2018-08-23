@@ -1,13 +1,8 @@
-import * as fs from 'fs';
 import { Command, CommandArgs, CommandResult,
          help, success, longName, required, hasArg,
          failure, ErrorCodes } from "../../../util/commandline";
-import { AppCenterClient } from "../../../util/apis";
 import { Messages } from "../lib/help-messages";
 import * as pfs from "../../../util/misc/promisfied-fs";
-import * as JsZip from "jszip";
-import * as phttps from "../../../util/misc/promisfied-https";
-import * as JsZipHelper from "../../../util/misc/jszip-helper";
 
 export abstract class GenerateCommand extends Command {
   @help(Messages.TestCloud.Arguments.AppPlatform)
@@ -28,17 +23,20 @@ export abstract class GenerateCommand extends Command {
 
   // Override this if you need to validate options
   protected async validateOptions(): Promise<void> {
+    return;
   }
 
-  protected abstract zipPathAndroid: string;
-  protected abstract zipPathiOS: string;
+  protected abstract templatePathAndroid: string;
+  protected abstract templatePathiOS: string;
+
+  protected abstract async processTemplate(): Promise<void>;
 
   protected isIOS(): boolean {
-    return (this.platform.toLowerCase() == "ios");
+    return (this.platform.toLowerCase() === "ios");
   }
 
   protected isAndroid(): boolean {
-    return (this.platform.toLowerCase() == "android");
+    return (this.platform.toLowerCase() === "android");
   }
 
   public async runNoClient(): Promise<CommandResult> {
@@ -49,28 +47,16 @@ export abstract class GenerateCommand extends Command {
     await this.validateOptions();
 
     if (await pfs.exists(this.outputPath)) {
-      let files = await pfs.readdir(this.outputPath);
+      const files = await pfs.readdir(this.outputPath);
       if (!(files.length === 0)) {
         return failure(ErrorCodes.Exception, this.outputPath + " exists and is not empty");
       }
     }
 
-    let zipFilePath = (await pfs.openTempFile(null)).path;
-
-    await phttps.getToFile(await this.zipUrl(), zipFilePath);
-
-    let zipFile = await pfs.readFile(zipFilePath);
-    let zip = await new JsZip().loadAsync(zipFile);
-    await JsZipHelper.unpackZipToPath(this.outputPath, zip);
-    await pfs.unlink(zipFilePath);
+    const templatePath = this.isIOS() ? this.templatePathiOS : this.templatePathAndroid;
+    await pfs.cpDir(templatePath, this.outputPath);
+    await this.processTemplate();
 
     return success();
-  }
-
-  private async zipUrl(): Promise<string>
-  {
-    let url = "https://s3-eu-west-1.amazonaws.com/xtc-frameworks/testcloud-project-templates/";
-
-    return url += this.isIOS() ? this.zipPathiOS : this.zipPathAndroid;
   }
 }

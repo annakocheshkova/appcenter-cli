@@ -1,22 +1,24 @@
-import { AppCommand, CommandArgs, CommandResult,
-         help, success, name, shortName, longName, required, hasArg,
-         failure, ErrorCodes } from "../../../util/commandline";
+import {
+  AppCommand, CommandArgs, CommandResult,
+  help, success, shortName, longName, required, hasArg,
+  failure
+} from "../../../util/commandline";
+
 import { TestCloudUploader, StartedTestRun } from "./test-cloud-uploader";
-import { TestCloudError } from "./test-cloud-error";
 import { StateChecker } from "./state-checker";
 import { AppCenterClient } from "../../../util/apis";
 import { StreamingArrayOutput } from "../../../util/interaction";
 import { getUser } from "../../../util/profile";
 import { parseTestParameters } from "./parameters-parser";
-import { parseIncludedFiles } from "./included-files-parser";
+import { processIncludedFiles } from "./included-files-parser";
 import { progressWithResult } from "./interaction";
-import { ITestCloudManifestJson, ITestFrameworkJson, IFileDescriptionJson } from "./test-manifest-reader";
+import { ITestCloudManifestJson } from "./test-manifest-reader";
 import { Messages } from "./help-messages";
 import * as _ from "lodash";
 import * as pfs from "../../../util/misc/promisfied-fs";
 import * as path from "path";
-import * as temp from "temp";
 import * as os from "os";
+import { buildErrorInfo } from "../lib/error-info-builder";
 
 export abstract class RunTestsCommand extends AppCommand {
 
@@ -71,6 +73,11 @@ export abstract class RunTestsCommand extends AppCommand {
   @hasArg
   timeoutSec: number;
 
+  @help(Messages.TestCloud.Arguments.VSTSIdVariable)
+  @longName("vsts-id-variable")
+  @hasArg
+  vstsIdVariable: string;
+
   protected isAppPathRequired = true;
   private readonly streamingOutput = new StreamingArrayOutput();
 
@@ -81,13 +88,20 @@ export abstract class RunTestsCommand extends AppCommand {
     this.include = this.fixArrayParameter(this.include);
 
     if (this.timeoutSec && typeof this.timeoutSec === "string") {
-      this.timeoutSec = parseInt(this.timeoutSec);
+      this.timeoutSec = parseInt(this.timeoutSec, 10);
     }
   }
 
   // Override this if you need to validate options
   protected async validateOptions(): Promise<void> {
+    return;
   }
+
+    // Override this if additional processing is needed need after test run completes
+  protected async afterCompletion(client: AppCenterClient, testRun: StartedTestRun, streamingOutput: StreamingArrayOutput): Promise<void> {
+    return;
+  }
+
   // TODO: There is technical debt here.
   // There is a lot of confusion and even duplicated code with respect to test params,
   // included files and responsibility of prepare vs run.
@@ -97,26 +111,31 @@ export abstract class RunTestsCommand extends AppCommand {
     }
     await this.validateOptions();
     try {
-      let artifactsDir = await this.getArtifactsDir();
+      const artifactsDir = await this.getArtifactsDir();
       this.streamingOutput.start();
       try {
-        let manifestPath = await progressWithResult("Preparing tests", this.prepareManifest(artifactsDir));
-        await this.addIncludedFilesToManifestAndCopyToArtifactsDir(manifestPath);
-        let testRun = await this.uploadAndStart(client, manifestPath, portalBaseUrl);
+        const manifestPath = await progressWithResult("Preparing tests", this.prepareManifest(artifactsDir));
+        await this.updateManifestAndCopyFilesToArtifactsDir(manifestPath);
+        const testRun = await this.uploadAndStart(client, manifestPath, portalBaseUrl);
 
-        this.streamingOutput.text(function (testRun){
+        const vstsIdVariable = this.vstsIdVariable;
+        this.streamingOutput.text(function (testRun) {
           let report: string = `Test run id: "${testRun.testRunId}"` + os.EOL;
+          if (vstsIdVariable) {
+            report = `##vso[task.setvariable variable=${vstsIdVariable}]${testRun.testRunId}` + os.EOL;
+          }
           report += "Accepted devices: " + os.EOL;
-          testRun.acceptedDevices.map(item => `  - ${item}`).forEach(text => report+=text + os.EOL);
+          testRun.acceptedDevices.map((item) => `  - ${item}`).forEach((text) => report += text + os.EOL);
           if (testRun.rejectedDevices && testRun.rejectedDevices.length > 0) {
             report += "Rejected devices: " + os.EOL;
-            testRun.rejectedDevices.map(item => `  - ${item}`).forEach(text => report+=text + os.EOL);
+            testRun.rejectedDevices.map((item) => `  - ${item}`).forEach((text) => report += text + os.EOL);
           }
           return report;
         }, testRun );
 
         if (!this.async) {
-          let exitCode = await this.waitForCompletion(client, testRun.testRunId);
+          const exitCode = await this.waitForCompletion(client, testRun.testRunId);
+          await this.afterCompletion(client, testRun, this.streamingOutput);
 
           switch (exitCode) {
             case 1:
@@ -127,10 +146,12 @@ export abstract class RunTestsCommand extends AppCommand {
           }
         }
 
-        this.streamingOutput.text(function (testRun){
-          let report: string = `Test Report: ${testRun.testRunUrl}` + os.EOL;
-          return report;
-        }, testRun );
+        if (!(this.async && this.format)) {
+          this.streamingOutput.text(function (testRun) {
+            const report: string = `Test Report: ${testRun.testRunUrl}` + os.EOL;
+            return report;
+          }, testRun );
+        }
 
         return success();
       }
@@ -138,64 +159,20 @@ export abstract class RunTestsCommand extends AppCommand {
         await this.cleanupArtifactsDir(artifactsDir);
         this.streamingOutput.finish();
       }
-    }
-    catch (err) {
-      let exitCode = err.exitCode || err.errorCode || ErrorCodes.Exception;
-      let message : string = null;
-      let profile = getUser();
-
-      let helpMessage = `Further error details: For help, please send both the reported error above and the following environment information to us by going to https://appcenter.ms/apps and starting a new conversation (using the icon in the bottom right corner of the screen)${os.EOL}
-        Environment: ${os.platform()}
-        App Upload Id: ${this.identifier}
-        Timestamp: ${Date.now()}
-        Operation: ${this.constructor.name}
-        Exit Code: ${exitCode}`;
-
-      if (profile) {
-        helpMessage += `
-        User Email: ${profile.email}
-        User Name: ${profile.userName}
-        User Id: ${profile.userId}
-        `;
-      }
-
-      if (err.message && err.message.indexOf("Not Found") !== -1)
-      {
-        message = `Requested resource not found - please check --app: ${this.identifier}${os.EOL}${os.EOL}${helpMessage}`;
-      }
-      if (err.errorCode === 5)
-      {
-        message = `Unauthorized error - please check --token or log in to the appcenter CLI.${os.EOL}${os.EOL}${helpMessage}`;
-      }
-      else if (err.errorMessage)
-      {
-        message = `${err.errorMessage}${os.EOL}${os.EOL}${helpMessage}`;
-      }
-      else
-      {
-        message = `${err.message}${os.EOL}${os.EOL}${helpMessage}`;
-      }
-
-      return failure(exitCode, message);
+    } catch (err) {
+      const errInfo: { message: string, exitCode: number } = buildErrorInfo(err, getUser(), this);
+      return failure(errInfo.exitCode, errInfo.message);
     }
   }
 
-  private async addIncludedFilesToManifestAndCopyToArtifactsDir(manifestPath: string): Promise<void> {
-    if (!this.include) {
-      return;
-    }
-    let manifestJson = await pfs.readFile(manifestPath, "utf8");
-    let manifest = JSON.parse(manifestJson) as ITestCloudManifestJson;
-    let includedFiles = parseIncludedFiles(this.include, this.getSourceRootDir());
+  private async updateManifestAndCopyFilesToArtifactsDir(manifestPath: string): Promise<void> {
+    const manifestJson = await pfs.readFile(manifestPath, "utf8");
+    const manifest = JSON.parse(manifestJson) as ITestCloudManifestJson;
+    manifest.cliVersion = this.getVersion();
 
-    for (let i = 0; i < includedFiles.length; i++) {
-      let includedFile = includedFiles[i];
-      let copyTarget = path.join(path.dirname(manifestPath), includedFile.targetPath);
-      await pfs.cp(includedFile.sourcePath, copyTarget);
-      manifest.files.push(includedFile.targetPath);
-    }
+    await processIncludedFiles(manifest, this.include, path.dirname(manifestPath), this.getSourceRootDir());
 
-    let modifiedManifest = JSON.stringify(manifest, null, 1);
+    const modifiedManifest = JSON.stringify(manifest, null, 1);
     await pfs.writeFile(manifestPath, modifiedManifest);
   }
 
@@ -208,7 +185,9 @@ export abstract class RunTestsCommand extends AppCommand {
   }
 
   protected async cleanupArtifactsDir(artifactsDir: string): Promise<void> {
-    await pfs.rmDir(artifactsDir, true);
+    await pfs.rmDir(artifactsDir, true).catch(function (err) {
+      console.warn(`${err} while cleaning up artifacts directory ${artifactsDir}. This is often due to files being locked or in use. Please check your virus scan settings and any local security policies you might have in place for this directory. Continuing without cleanup.`);
+    });
   }
 
   private artifactsDir: string;
@@ -218,7 +197,7 @@ export abstract class RunTestsCommand extends AppCommand {
   }
 
   protected async uploadAndStart(client: AppCenterClient, manifestPath: string, portalBaseUrl: string): Promise<StartedTestRun> {
-    let uploader = new TestCloudUploader(
+    const uploader = new TestCloudUploader(
       client,
       this.app.ownerName,
       this.app.appName,
@@ -230,17 +209,31 @@ export abstract class RunTestsCommand extends AppCommand {
     uploader.language = this.language;
     uploader.locale = this.locale;
     uploader.testSeries = this.testSeries;
-    uploader.dSymPath = this.dSymDir;
+    uploader.testParameters = this.combinedParameters();
 
-    if (this.testParameters) {
-      uploader.testParameters = parseTestParameters(this.testParameters);
+    if (this.dSymDir) {
+      console.warn("The option --dsym-dir is deprecated and ignored");
     }
 
     return await uploader.uploadAndStart();
   }
 
+  private combinedParameters() : {} {
+    const parameters = this.getParametersFromOptions();
+
+    if (this.testParameters) {
+      return _.merge(parameters, parseTestParameters(this.testParameters));
+    } else {
+      return parameters;
+    }
+  }
+
+  protected getParametersFromOptions() : {} {
+    return {};
+  }
+
   private waitForCompletion(client: AppCenterClient, testRunId: string): Promise<number> {
-    let checker = new StateChecker(client, testRunId, this.app.ownerName, this.app.appName, this.streamingOutput);
+    const checker = new StateChecker(client, testRunId, this.app.ownerName, this.app.appName, this.streamingOutput);
     return checker.checkUntilCompleted(this.timeoutSec);
   }
 }

@@ -26,10 +26,12 @@ export default class PatchCommand extends AppCommand {
 
   @help("Specifies whether this release should be considered mandatory. (Putting -m flag means mandatory)")
   @shortName("m")
+  @longName("mandatory")
   public isMandatory: boolean;
 
   @help("Specifies whether this release should be immediately downloadable. (Putting -x flag means disabled)")
   @shortName("x")
+  @longName("disabled")
   public isDisabled: boolean;
 
   @help("Specifies binary app version(s) that specifies this release is targeting for. (The value must be a semver expression such as 1.1.0, ~1.2.3)")
@@ -65,14 +67,14 @@ export default class PatchCommand extends AppCommand {
 
     const rollout = Number(this.rollout);
     if (this.rollout != null && (!Number.isSafeInteger(rollout) || !isValidRollout(rollout))) {
-        return failure(ErrorCodes.Exception, `Rollout value should be integer value between ${chalk.bold('0')} or ${chalk.bold('100')}.`);
+        return failure(ErrorCodes.Exception, `Rollout value should be integer value between ${chalk.bold("0")} or ${chalk.bold("100")}.`);
     }
 
     if (this.targetBinaryRange != null && !isValidRange(this.targetBinaryRange)) {
       return failure(ErrorCodes.Exception, "Invalid binary version(s) for a release.");
     }
 
-    let patch : models.CodePushReleaseModification = {
+    const patch : models.CodePushReleaseModification = {
       targetBinaryRange: this.targetBinaryRange,
       isMandatory: this.isMandatory,
       isDisabled: this.isDisabled,
@@ -83,7 +85,7 @@ export default class PatchCommand extends AppCommand {
       patch.rollout = rollout;
     }
 
-    if (this.releaseLabel == null || this.releaseLabel == "") {
+    if (this.releaseLabel == null || this.releaseLabel === "") {
       debug("Release label is not set, get latest...");
       this.releaseLabel = await this.getLatestReleaseLabel(client, app);
     }

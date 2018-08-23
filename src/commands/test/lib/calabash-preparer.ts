@@ -19,13 +19,13 @@ export class CalabashPreparer {
 
   constructor(artifactsDir: string, projectDir: string, appPath: string, testParameters: string[]) {
     if (!artifactsDir) {
-      throw new Error("Argument artifactsDir is required");
+      throw new Error("Argument --artifacts-dir is required");
     }
     if (!projectDir) {
-      throw new Error("Argument projectDir is required");
+      throw new Error("Argument --project-dir is required");
     }
     if (!appPath) {
-      throw new Error("Argument appPath is required");
+      throw new Error("Argument --app-path is required");
     }
 
     this.artifactsDir = artifactsDir;
@@ -35,9 +35,9 @@ export class CalabashPreparer {
   }
 
   public async prepare(): Promise<string> {
-    let command = this.getPrepareCommand();
+    const command = this.getPrepareCommand();
     debug(`Executing command ${command}`);
-    let exitCode = await process.execAndWait(command, this.outMessage, this.outMessage);
+    const exitCode = await process.execAndWait(command, this.outMessage, this.outMessage);
 
     if (exitCode !== 0) {
       throw new TestCloudError(`Cannot prepare Calabash artifacts. Returning exit code ${exitCode}.`, exitCode);
@@ -71,8 +71,7 @@ export class CalabashPreparer {
   }
 
   private generateTestParameterArgs(): string {
-    let result: string = "";
-    return this.testParameters.map(parseTestParameter).map(p => `"${p.key}:${p.value}"`).join(" ");
+    return this.testParameters.map(parseTestParameter).map((p) => `"${p.key}:${p.value}"`).join(" ");
   }
 
   /*
@@ -90,7 +89,7 @@ export class CalabashPreparer {
    The easiest way to make the experience better is to translate the messages.
   */
   private outMessage(line: string) {
-    let translatedCalabashMessage = line.replace("--config ", "--config-path ");
+    const translatedCalabashMessage = line.replace("--config ", "--config-path ");
     out.text(translatedCalabashMessage);
   }
 }

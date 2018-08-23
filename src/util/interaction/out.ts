@@ -1,14 +1,13 @@
 // Functions to support outputting stuff to the user
-const debug = require("debug")("appcenter-cli:util:interaction:out");
 import { inspect } from "util";
 
-import { isDebug, isQuiet, formatIsJson, formatIsCsv, formatIsParsingCompatible } from "./io-options";
+import { isQuiet, formatIsJson, formatIsCsv, formatIsParsingCompatible } from "./io-options";
 
 import * as os from "os";
 import * as wrap from "wordwrap";
 import * as tty from "tty";
 
-const Table = require("cli-table2");
+const Table = require("cli-table3");
 const Spinner = require("cli-spinner").Spinner;
 
 import { terminal } from "./terminal";
@@ -24,11 +23,11 @@ export function progress<T>(title: string, action: Promise<T>): Promise<T> {
   if (!formatIsParsingCompatible() && !isQuiet() && stdoutIsTerminal) {
     const spinner = new Spinner(title);
     spinner.start();
-    return action.then(result => {
+    return action.then((result) => {
       spinner.stop(true);
       return result;
     })
-    .catch(ex => {
+    .catch((ex) => {
       spinner.stop(true);
       throw ex;
     });
@@ -46,7 +45,7 @@ export function list<T>(formatter: {(item: T): string}, items: T[]): void {
   if (!items || Object.keys(items).length === 0) { return; }
 
   if (!formatIsJson()) {
-    items.map(formatter).forEach(text => console.log(text));
+    items.map(formatter).forEach((text) => console.log(text));
   } else {
     console.log(JSON.stringify(items));
   }
@@ -57,8 +56,7 @@ export function list<T>(formatter: {(item: T): string}, items: T[]): void {
 //
 export function help(t: string): void;
 export function help(): void;
-export function help(...args: any[]) : void
-{
+export function help(...args: any[]) : void {
   console.assert(!formatIsCsv(), "this function doesn't support CSV mode");
   let t: string;
   if (args.length === 0) {
@@ -91,16 +89,16 @@ export function text(...args: any[]): void {
       console.log(JSON.stringify(data));
     }
   } else {
-    converter = converter || (s => s);
+    converter = converter || ((s) => s);
     console.log(converter(data));
   }
 }
 
 //
 // Output tabular data.
-// By default, does a simple default table using cli-table2.
+// By default, does a simple default table using cli-table3.
 // If you want to, you can pass in explicit table initialization
-// options. See https://github.com/jamestalmage/cli-table2 for docs
+// options. See https://github.com/jamestalmage/cli-table3 for docs
 // on the module.
 //
 export function table(options: any, data: any[]): void;
@@ -116,16 +114,16 @@ export function table(...args: any[]): void {
     options = undefined;
   }
 
-  if(!formatIsJson()) {
-    let cliTable = new Table(options);
-    data.forEach(item => cliTable.push(item));
+  if (!formatIsJson()) {
+    const cliTable = new Table(options);
+    data.forEach((item) => cliTable.push(item));
     console.log(cliTable.toString());
   } else {
     console.log(JSON.stringify(data));
   }
 }
 
-// Formatting helper for cli-table2 - default command output table style
+// Formatting helper for cli-table3 - default command output table style
 export function getCommandOutputTableOptions(header: string[]): object {
   return {
     head: header,
@@ -136,7 +134,7 @@ export function getCommandOutputTableOptions(header: string[]): object {
 }
 
 //
-// Formatting helper for cli-table2 - two columns with no table outlines. Used by
+// Formatting helper for cli-table3 - two columns with no table outlines. Used by
 // help commands for formatting lists of options, commands, etc.
 //
 export function getOptionsForTwoColumnTableWithNoBorders(firstColumnWidth: number) {
@@ -147,16 +145,16 @@ export function getOptionsForTwoColumnTableWithNoBorders(firstColumnWidth: numbe
 
   return {
     chars: {
-      "top": "", "top-mid": "", "top-left": "", "top-right": "",
-      "bottom": "", "bottom-mid": "", "bottom-left": "", "bottom-right": "",
-      "left": "", "left-mid": "", "mid": "", "mid-mid": "",
-      "right": "", "right-mid": "", "middle": ""
+      top: "", "top-mid": "", "top-left": "", "top-right": "",
+      bottom: "", "bottom-mid": "", "bottom-left": "", "bottom-right": "",
+      left: "", "left-mid": "", mid: "", "mid-mid": "",
+      right: "", "right-mid": "", middle: ""
     },
     style: { "padding-left": 0, "padding-right": 0 },
     colWidths: [firstColumnWidth, secondColumnWidth],
     wordWrap: true
   };
-};
+}
 
 //
 // Output a "report", which is a formatted output of a single object
@@ -260,7 +258,7 @@ function spaces(num: number): string {
 }
 
 function toWidth(s: string, width: number): string {
-  var pad = width - s.length;
+  const pad = width - s.length;
   return s + spaces(pad);
 }
 
@@ -279,16 +277,16 @@ function defaultFormat(data: any): string {
 }
 
 function getProperty(value: any, propertyName: string): any {
-  if (typeof value === 'undefined' || value === null) {
-    return '';
+  if (typeof value === "undefined" || value === null) {
+    return "";
   }
 
   if (!propertyName) {
     return value;
   }
 
-  var first = propertyName.split('.')[0];
-  var rest = propertyName.slice(first.length + 1);
+  const first = propertyName.split(".")[0];
+  const rest = propertyName.slice(first.length + 1);
   return getProperty(value[first], rest);
 }
 
@@ -297,27 +295,27 @@ function doReport(indentation: number, reportFormat: any[], data: any, outfn: {(
     return;
   }
 
-  var maxWidth = 80;
-  if ((<any>process.stdout).isTTY) {
-    maxWidth = (<any>process.stdout).columns;
+  let maxWidth = 80;
+  if ((process.stdout as any).isTTY) {
+    maxWidth = (process.stdout as any).columns;
   }
 
-  var headerWidth = Math.max.apply(null,
+  const headerWidth = Math.max.apply(null,
     reportFormat.map(function (item) { return item[0].length; })
     ) + 2;
 
   reportFormat.forEach(function (item) {
-    var title = item[0] + ":";
-    var field = item[1];
-    var formatter = item[2] || defaultFormat;
+    const title = item[0] + ":";
+    const field = item[1];
+    const formatter = item[2] || defaultFormat;
 
-    var value = getProperty(data, field);
+    const value = getProperty(data, field);
     if (formatter instanceof Array) {
       outfn(spaces(indentation) + toWidth(title, headerWidth));
       doReport(indentation + headerWidth, formatter, value, outfn);
     } else {
-      var leftIndentation = "verbose: ".length + indentation + headerWidth;
-      var formatted = wrap.hard(leftIndentation, maxWidth)(formatter(value));
+      const leftIndentation = "verbose: ".length + indentation + headerWidth;
+      let formatted = wrap.hard(leftIndentation, maxWidth)(formatter(value));
       formatted = spaces(indentation) + toWidth(title, headerWidth) +
         formatted.slice(leftIndentation);
       outfn(formatted);
@@ -326,14 +324,14 @@ function doReport(indentation: number, reportFormat: any[], data: any, outfn: {(
 }
 
 interface ReportFunc {
-  (reportFormat: any, nullMessage: string, data:any): void;
+  (reportFormat: any, nullMessage: string, data: any): void;
   (reportFormat: any, data: any): void;
   allProperties: {(data: any): string };
   asDate: {(data: any): string };
   inspect: {(data: any): string };
-};
+}
 
-function makeReport(reportFormat: any, nullMessage: string, data:any): void;
+function makeReport(reportFormat: any, nullMessage: string, data: any): void;
 function makeReport(reportFormat: any, data: any): void;
 function makeReport(...args: any[]): void {
   console.assert(!formatIsCsv(), "this function doesn't support CSV mode");
@@ -359,16 +357,16 @@ function makeReport(...args: any[]): void {
   }
 }
 
-export const report = <ReportFunc> makeReport;
+export const report = makeReport as ReportFunc;
 
 report.allProperties = function (data: any): any {
   if (typeof data === "undefined" || data === null || data === "") {
     return "[]";
   }
-  var subreport = Object.keys(data).map(function (key) {
+  const subreport = Object.keys(data).map(function (key) {
     return [key, key];
   });
-  var result: string[] = [];
+  const result: string[] = [];
   doReport(0, subreport, data, function (o) { result.push(o); });
   result.push("");
   return result.join(os.EOL);
@@ -423,27 +421,27 @@ function getMarginStringFromLevel(level: number) {
 }
 
 //
-// Formatting helper for cli-table2 - table with borders which can be moved to the right
+// Formatting helper for cli-table3 - table with borders which can be moved to the right
 // It is used to show sub-tables
 //
 function getTableWithLeftMarginOptions(leftMargin: string) {
   return {
     chars: {
-       "top": "─"
+       top: "─"
       , "top-mid": "┬"
       , "top-left":  leftMargin + "┌"
       , "top-right": "┐"
-      , "bottom": "─"
+      , bottom: "─"
       , "bottom-mid": "┴"
       , "bottom-left": leftMargin + "└"
       , "bottom-right": "┘"
-      , "left": leftMargin + "│"
+      , left: leftMargin + "│"
       , "left-mid": leftMargin + "├"
-      , "mid": "─"
+      , mid: "─"
       , "mid-mid": "┼"
-      , "right": "│"
+      , right: "│"
       , "right-mid": "┤"
-      , "middle": "│"
+      , middle: "│"
     },
     style: { "padding-left": 0, "padding-right": 0 },
     wordWrap: true
@@ -492,7 +490,7 @@ function convertNamedTablesToListString(stringTables: NamedTables): string {
     // table contents
     const tableWithMergedStringArrays: any[] = [];
     // merging continuous string[] chains into Table objects
-    for (const row of paddedTable.content){
+    for (const row of paddedTable.content) {
       if (isINamedTable(row)) {
         tableWithMergedStringArrays.push(row);
       } else {

@@ -1,4 +1,4 @@
-import { CommandArgs, help, longName, required, hasArg } from "../../../util/commandline";
+import { CommandArgs, help, longName, hasArg } from "../../../util/commandline";
 import { XCUITestPreparer } from "../lib/xcuitest-preparer";
 import { PrepareTestsCommand } from "../lib/prepare-tests-command";
 import { Messages } from "../lib/help-messages";
@@ -16,13 +16,22 @@ export default class PrepareXCUITestCommand extends PrepareTestsCommand {
   @hasArg
   testIpaPath: string;
 
+  @help(Messages.TestCloud.Arguments.NotSupported + " for XCUITest")
+  @longName("include")
+  @hasArg
+  include: string[];
+
   constructor(args: CommandArgs) {
     super(args);
   }
 
   protected prepareManifest(): Promise<string> {
-    let preparer = new XCUITestPreparer(this.artifactsDir, this.buildDir, this.testIpaPath);
+    const preparer = new XCUITestPreparer(this.artifactsDir, this.buildDir, this.testIpaPath, this.include);
     return preparer.prepare();
+  }
+
+  protected getSourceRootDir() {
+    return this.buildDir;
   }
 
   protected async validateOptions(): Promise<void> {
