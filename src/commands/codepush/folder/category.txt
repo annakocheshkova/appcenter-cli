@@ -1,1 +1,2 @@
-View and manage your virtual folders
+View and manage your virtual folders. 
+Tip: You can use interactive mode on `remove` and `rename` commands.

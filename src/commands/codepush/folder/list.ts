@@ -19,8 +19,8 @@ export default class CodePushFolderListListCommand extends AppCommand {
     const app = this.app;
     let folders: models.Folder[];
     try {
-      const httpRequest = await out.progress("Getting CodePush folders...", clientRequest<models.Folder[]>(
-        (cb) => client.codePushfolders.list(app.ownerName, app.appName, cb)));
+        const httpRequest = await out.progress("Getting CodePush folders...", clientRequest<models.Folder[]>(
+          (cb) => client.codePushfolders.list(app.ownerName, app.appName, cb)));
       folders = httpRequest.result;
       out.table(out.getCommandOutputTableOptions(["Name", "Path"]), folders.map((folder) => [folder.name, folder.path]));
       return success();

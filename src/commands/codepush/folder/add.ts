@@ -35,7 +35,7 @@ export default class CodePushAddFolderCommand extends AppCommand {
       const httpRequest = await out.progress("Creating a new CodePush folder...", clientRequest<models.Folder>(
         (cb) => client.codePushFolders.create(app.ownerName, app.appName, this.newFolderName, this.newFolderPath, cb)));
       folder = httpRequest.result;
-      out.text(`Folder ${chalk.bold(folder.name)} has been created for ${this.identifier}`);
+      out.text(`Folder with ${chalk.bold(folder.name)} has been created for ${this.identifier}`);
       return success();
     } catch (error) {
       debug(`Failed to add a new CodePush folder - ${inspect(error)}`);
