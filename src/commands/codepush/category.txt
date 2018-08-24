@@ -1,1 +1,1 @@
-View and manage CodePush deployments and releases
+View and manage CodePush deployments, folders and releases

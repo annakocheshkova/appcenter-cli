@@ -66,6 +66,10 @@ Below is the list of commands currently supported by Visual Studio App Center CL
 | `appcenter codepush deployment list` | List the deployments associated with an app |
 | `appcenter codepush deployment remove` | Remove CodePush deployment |
 | `appcenter codepush deployment rename` | Rename CodePush deployment |
+| `appcenter codepush folder add` | Add a new virtual folder to an app |
+| `appcenter codepush folder list` | List the virtual folders associated with an app |
+| `appcenter codepush folder remove` | Remove CodePush virtual folder |
+| `appcenter codepush folder rename` | Rename CodePush virtual folder |
 | | |
 | `appcenter crashes upload-missing-symbols` | Upload missing crash symbols for the application (only from macOS) |
 | `appcenter crashes upload-symbols` | Upload the crash symbols for the application |
